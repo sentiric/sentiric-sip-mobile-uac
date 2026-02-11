@@ -1,5 +1,9 @@
 # 📱 Sentiric Mobile SIP UAC
 
+[![Latest Release](https://img.shields.io/github/v/release/sentiric/sentiric-mobile-sip-uac?color=orange&label=DOWNLOAD%20APK)](https://github.com/sentiric/sentiric-mobile-sip-uac/releases/latest)
+
+> **Hızlı İndirme:** En son Android APK sürümünü indirmek için [buraya tıklayın](https://github.com/sentiric/sentiric-mobile-sip-uac/releases/latest).
+
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
 [![Language](https://img.shields.io/badge/language-Flutter%20%7C%20Rust-blue.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS-green.svg)]()
