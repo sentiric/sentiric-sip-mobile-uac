@@ -4,12 +4,12 @@ on:
   push:
     branches: [ "main" ]
     tags:
-      - 'v*' # v1.0.0 gibi etiketlerde çalışır
+      - 'v*'
   pull_request:
     branches: [ "main" ]
 
 permissions:
-  contents: write # Release oluşturmak için şart
+  contents: write
 
 jobs:
   build:
@@ -41,9 +41,11 @@ jobs:
 
       - name: 5. Install Build Tools
         run: |
+          # DÜZELTME: libasound2-dev eklendi (CPAL/ALSA hatası çözümü)
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev
           cargo install flutter_rust_bridge_codegen --version 2.11.1
           cargo install cargo-ndk
-          sudo apt-get update && sudo apt-get install -y ninja-build
 
       - name: 6. Build Native Core (Rust)
         run: |
@@ -73,7 +75,7 @@ jobs:
             sentiric-uac-android-arm64-*.apk
             sentiric-uac-android-armv7-*.apk
           name: Release ${{ github.ref_name }}
-          tag_name: ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
           draft: false
           prerelease: false
           generate_release_notes: true
