@@ -3,14 +3,26 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:sentiric_mobile_sip_uac/src/rust/api/simple.dart';
 import 'package:sentiric_mobile_sip_uac/src/rust/frb_generated.dart';
 
+import 'dart:io'; // EKLENDİ
+import 'dart:ffi'; // EKLENDİ
+
 Future<void> main() async {
-  // Flutter engine ve platform kanallarını hazırla
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    // 1. Rust Kütüphanesini ve Bridge'i yükle
+    // --- B PLANI EKLEMESİ BAŞLANGIÇ ---
+    if (Platform.isAndroid) {
+      try {
+        // C++ Runtime'ı manuel yükle
+        DynamicLibrary.open('libc++_shared.so');
+        print("✅ libc++_shared.so loaded manually.");
+      } catch (e) {
+        print("⚠️ libc++ load warning: $e");
+      }
+    }
+    // --- B PLANI EKLEMESİ BİTİŞ ---
+
     await RustLib.init();
-    // 2. Rust Loglarını Android Logcat'e bağla
     await initLogger(); 
   } catch (e) {
     debugPrint("Rust Init Error: $e");

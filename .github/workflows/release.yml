@@ -51,12 +51,25 @@ jobs:
         run: |
           flutter pub get
           flutter_rust_bridge_codegen generate
-          cd rust && cargo ndk -t arm64-v8a -t armeabi-v7a build --release
+          
+          # NDK yolunu bul (Github Runnerlarda standarttır)
+          export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
+          
+          cd rust
+          # Kütüphaneyi derle
+          cargo ndk -t arm64-v8a -t armeabi-v7a -o ../android/app/src/main/jniLibs build --release
           cd ..
-          mkdir -p android/app/src/main/jniLibs/arm64-v8a
-          mkdir -p android/app/src/main/jniLibs/armeabi-v7a
-          cp rust/target/aarch64-linux-android/release/libmobile_uac.so android/app/src/main/jniLibs/arm64-v8a/
-          cp rust/target/armv7-linux-androideabi/release/libmobile_uac.so android/app/src/main/jniLibs/armeabi-v7a/
+          
+          # --- MANUEL C++ KÜTÜPHANE KOPYALAMA (CI İÇİN) ---
+          echo "Searching for libc++_shared.so in $ANDROID_NDK_HOME..."
+          
+          # ARM64
+          find $ANDROID_NDK_HOME -name "libc++_shared.so" | grep "aarch64" | head -n 1 | xargs -I {} cp {} android/app/src/main/jniLibs/arm64-v8a/
+          
+          # ARMv7
+          find $ANDROID_NDK_HOME -name "libc++_shared.so" | grep "arm-linux-androideabi" | head -n 1 | xargs -I {} cp {} android/app/src/main/jniLibs/armeabi-v7a/
+          
+          echo "Library copy complete."
 
       - name: 7. Build Android APK
         run: flutter build apk --release --split-per-abi
