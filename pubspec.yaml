@@ -1,5 +1,5 @@
-name: sentiric_mobile_sip_uac
-description: "A new Flutter project."
+name: sentiric_sip_mobile_uac
+description: "Sentiric Mobile SIP UAC for field testing and validation."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

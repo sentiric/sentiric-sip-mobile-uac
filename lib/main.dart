@@ -1,26 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:sentiric_mobile_sip_uac/src/rust/api/simple.dart';
-import 'package:sentiric_mobile_sip_uac/src/rust/frb_generated.dart';
+// [KRİTİK DÜZELTME]: Import yolu 'pubspec.yaml' ile eşleşecek şekilde güncellendi.
+import 'package:sentiric_sip_mobile_uac/src/rust/api/simple.dart';
+import 'package:sentiric_sip_mobile_uac/src/rust/frb_generated.dart';
 
-import 'dart:io'; // EKLENDİ
-import 'dart:ffi'; // EKLENDİ
+import 'dart:io';
+import 'dart:ffi';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    // --- B PLANI EKLEMESİ BAŞLANGIÇ ---
     if (Platform.isAndroid) {
       try {
-        // C++ Runtime'ı manuel yükle
         DynamicLibrary.open('libc++_shared.so');
         print("✅ libc++_shared.so loaded manually.");
       } catch (e) {
         print("⚠️ libc++ load warning: $e");
       }
     }
-    // --- B PLANI EKLEMESİ BİTİŞ ---
 
     await RustLib.init();
     await initLogger(); 
@@ -37,7 +35,7 @@ class SentiricApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Sentiric Mobile UAC',
+      title: 'UAC', // Başlık kısaltıldı
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F0F0F),
@@ -67,13 +65,11 @@ class _DialerScreenState extends State<DialerScreen> {
   bool _isCalling = false;
   final ScrollController _scrollController = ScrollController();
 
-  // Logları ekrana basan ve otomatik aşağı kaydıran yardımcı metod
   void _addLog(String msg) {
     if (!mounted) return;
     setState(() {
       _logs.add(msg);
     });
-    // Liste güncellendikten sonra en alta kaydır
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -86,7 +82,6 @@ class _DialerScreenState extends State<DialerScreen> {
   }
 
   Future<void> _handleCall() async {
-    // 1. MİKROFON İZNİ (Zorunlu)
     var status = await Permission.microphone.status;
     if (!status.isGranted) {
       _addLog("🔐 Requesting Microphone permission...");
@@ -99,7 +94,6 @@ class _DialerScreenState extends State<DialerScreen> {
       return;
     }
 
-    // 2. GİRDİ KONTROLÜ
     if (_ipController.text.isEmpty) {
       _addLog("❌ Error: Target IP is required!");
       return;
@@ -114,7 +108,6 @@ class _DialerScreenState extends State<DialerScreen> {
       final int targetPort = int.parse(_portController.text);
       _addLog("🚀 Starting Hardware-Linked SIP Call...");
 
-      // 3. RUST CORE CALL (Stream Başlatılıyor)
       final stream = startSipCall(
         targetIp: _ipController.text,
         targetPort: targetPort,
@@ -122,11 +115,10 @@ class _DialerScreenState extends State<DialerScreen> {
         fromUser: _fromController.text,
       );
 
-      // Olayları dinle
       stream.listen(
         (event) {
           _addLog(event);
-          if (event.contains("FINISH") || event.contains("ERROR")) {
+          if (event.contains("Terminated") || event.contains("ERROR")) {
             setState(() => _isCalling = false);
           }
         },
@@ -154,7 +146,6 @@ class _DialerScreenState extends State<DialerScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Network Config Section
             Row(
               children: [
                 Expanded(
@@ -178,7 +169,6 @@ class _DialerScreenState extends State<DialerScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            // Identity Section
             Row(
               children: [
                 Expanded(
@@ -199,7 +189,6 @@ class _DialerScreenState extends State<DialerScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            // Call Button
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -214,13 +203,11 @@ class _DialerScreenState extends State<DialerScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            // Monitor Label
             const Align(
               alignment: Alignment.centerLeft,
               child: Text("REAL-TIME TELECOM EVENTS", style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 4),
-            // Log Console
             Expanded(
               child: Container(
                 width: double.infinity,
