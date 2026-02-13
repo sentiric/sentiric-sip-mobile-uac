@@ -1,15 +1,17 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sentiric_sip_mobile_uac/src/rust/api/simple.dart';
 import 'package:sentiric_sip_mobile_uac/src/rust/frb_generated.dart';
-import 'package:sentiric_sip_mobile_uac/telecom_telemetry.dart'; // Yeni import
-
+import 'package:sentiric_sip_mobile_uac/telecom_telemetry.dart';
 import 'dart:io';
 import 'dart:ffi';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
+    // Android için C++ kütüphanesini yükle (Gerekli)
     if (Platform.isAndroid) {
       try {
         DynamicLibrary.open('libc++_shared.so');
@@ -31,11 +33,16 @@ class SentiricApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Sentiric Mobile UAC',
+      title: 'Sentiric Mobile',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0A0A0A),
-        primaryColor: Colors.greenAccent,
+        scaffoldBackgroundColor: const Color(0xFF0D0D0D),
+        primaryColor: const Color(0xFF00FF9D),
+        colorScheme: ColorScheme.dark(
+          primary: const Color(0xFF00FF9D),
+          secondary: Colors.cyanAccent,
+          surface: Colors.grey.shade900,
+        ),
       ),
       home: const DialerScreen(),
     );
@@ -45,10 +52,11 @@ class SentiricApp extends StatelessWidget {
 class DialerScreen extends StatefulWidget {
   const DialerScreen({super.key});
   @override
-  _DialerScreenState createState() => _DialerScreenState();
+  State<DialerScreen> createState() => _DialerScreenState();
 }
 
 class _DialerScreenState extends State<DialerScreen> {
+  // Varsayılan Değerler (Hardcode değil, Default Value)
   final TextEditingController _ipController = TextEditingController(text: "34.122.40.122");
   final TextEditingController _portController = TextEditingController(text: "5060");
   final TextEditingController _toController = TextEditingController(text: "9999");
@@ -58,19 +66,17 @@ class _DialerScreenState extends State<DialerScreen> {
   bool _isCalling = false;
   final ScrollController _scrollController = ScrollController();
 
-  void _processIncomingEvent(String raw) {
+  void _addLog(TelemetryEntry entry) {
     if (!mounted) return;
-    final entry = TelecomTelemetry.parse(raw);
-    
     setState(() {
       _telemetryLogs.add(entry);
     });
-
+    // Otomatik Scroll
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
       }
@@ -78,24 +84,49 @@ class _DialerScreenState extends State<DialerScreen> {
   }
 
   Future<void> _handleCall() async {
+    // İzin Kontrolü (Mikrofon)
     if (await Permission.microphone.request().isGranted) {
       setState(() {
         _telemetryLogs.clear();
         _isCalling = true;
       });
+      
+      _addLog(TelemetryEntry(message: "🚀 Initializing SDK...", level: TelemetryLevel.status));
 
-      final stream = startSipCall(
-        targetIp: _ipController.text,
-        targetPort: int.parse(_portController.text),
-        toUser: _toController.text,
-        fromUser: _fromController.text,
-      );
+      try {
+        final stream = startSipCall(
+          targetIp: _ipController.text.trim(),
+          targetPort: int.parse(_portController.text.trim()),
+          toUser: _toController.text.trim(),
+          fromUser: _fromController.text.trim(),
+        );
 
-      stream.listen(
-        (event) => _processIncomingEvent(event),
-        onDone: () => setState(() => _isCalling = false),
-        onError: (e) => _processIncomingEvent("Error(\"Stream: $e\")"),
-      );
+        stream.listen(
+          (eventRaw) {
+            // Rust'tan gelen string'i parse et ve listeye ekle
+            final entry = TelecomTelemetry.parse(eventRaw);
+            _addLog(entry);
+            
+            // Eğer arama sonlandıysa butonu aktif et
+            if (eventRaw.contains("Terminated")) {
+               setState(() => _isCalling = false);
+            }
+          },
+          onDone: () {
+            _addLog(TelemetryEntry(message: "🏁 Stream Closed", level: TelemetryLevel.status));
+            setState(() => _isCalling = false);
+          },
+          onError: (e) {
+            _addLog(TelemetryEntry(message: "System Error: $e", level: TelemetryLevel.error));
+            setState(() => _isCalling = false);
+          },
+        );
+      } catch (e) {
+        _addLog(TelemetryEntry(message: "Exception: $e", level: TelemetryLevel.error));
+        setState(() => _isCalling = false);
+      }
+    } else {
+      _addLog(TelemetryEntry(message: "Microphone permission denied!", level: TelemetryLevel.error));
     }
   }
 
@@ -103,126 +134,104 @@ class _DialerScreenState extends State<DialerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('📡 FIELD MONITOR v2.0', style: TextStyle(letterSpacing: 2, fontSize: 16)),
+        title: const Text('SENTIRIC FIELD MONITOR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
         backgroundColor: Colors.black,
-        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () => setState(() => _telemetryLogs.clear()),
+          )
+        ],
       ),
       body: Column(
         children: [
-          _buildInputPanel(),
-          _buildActionBtn(),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Divider(color: Colors.greenAccent, thickness: 0.2),
+          // Girdi Alanı
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.white.withOpacity(0.05),
+            child: Column(
+              children: [
+                Row(children: [
+                  Expanded(flex: 3, child: _inputField(_ipController, "Edge IP", Icons.dns)),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 1, child: _inputField(_portController, "Port", Icons.numbers)),
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: _inputField(_toController, "To (Callee)", Icons.call_made)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _inputField(_fromController, "From (You)", Icons.person)),
+                ]),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: _isCalling ? null : _handleCall,
+                    icon: Icon(_isCalling ? Icons.timelapse : Icons.call),
+                    label: Text(_isCalling ? "CALL IN PROGRESS..." : "START TEST CALL"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00FF9D),
+                      foregroundColor: Colors.black,
+                      disabledBackgroundColor: Colors.grey.shade800,
+                      disabledForegroundColor: Colors.white54,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          Expanded(child: _buildLogConsole()),
+          
+          const Divider(height: 1, color: Colors.white24),
+          
+          // Log Konsolu
+          Expanded(
+            child: Container(
+              color: Colors.black,
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(8),
+                itemCount: _telemetryLogs.length,
+                itemBuilder: (context, index) => _buildLogItem(_telemetryLogs[index]),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildInputPanel() {
-    return Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Card(
-        color: Colors.white.withOpacity(0.03),
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(child: _miniField(_ipController, "Edge IP")),
-                  const SizedBox(width: 8),
-                  Expanded(child: _miniField(_portController, "Port")),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(child: _miniField(_toController, "To")),
-                  const SizedBox(width: 8),
-                  Expanded(child: _miniField(_fromController, "From")),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _miniField(TextEditingController ctrl, String hint) {
+  Widget _inputField(TextEditingController controller, String label, IconData icon) {
     return TextField(
-      controller: ctrl,
+      controller: controller,
       enabled: !_isCalling,
-      style: const TextStyle(fontSize: 12),
-      decoration: InputDecoration(labelText: hint, labelStyle: const TextStyle(color: Colors.grey)),
+      style: const TextStyle(fontSize: 13, fontFamily: 'monospace'),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 16, color: Colors.white54),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+        filled: true,
+        fillColor: Colors.black12,
+      ),
     );
   }
 
-  Widget _buildActionBtn() {
+  Widget _buildLogItem(TelemetryEntry entry) {
+    Color textColor = Colors.grey;
+    if (entry.level == TelemetryLevel.status) textColor = const Color(0xFF00FF9D);
+    if (entry.level == TelemetryLevel.error) textColor = Colors.redAccent;
+    if (entry.level == TelemetryLevel.sip) textColor = Colors.cyanAccent;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        width: double.infinity,
-        height: 50,
-        child: ElevatedButton(
-          onPressed: _isCalling ? null : _handleCall,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _isCalling ? Colors.blueGrey : Colors.green.shade900,
-          ),
-          child: Text(_isCalling ? "CALL IN PROGRESS..." : "START TELECOM SESSION"),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogConsole() {
-    return Container(
-      margin: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: ListView.builder(
-        controller: _scrollController,
-        itemCount: _telemetryLogs.length,
-        itemBuilder: (context, index) {
-          final entry = _telemetryLogs[index];
-          return _logLine(entry);
-        },
-      ),
-    );
-  }
-
-  Widget _logLine(TelemetryEntry entry) {
-    Color color = Colors.greenAccent.withOpacity(0.8);
-    FontWeight weight = FontWeight.normal;
-    double size = 11;
-
-    if (entry.level == TelemetryLevel.status) {
-      color = Colors.white;
-      weight = FontWeight.bold;
-    } else if (entry.level == TelemetryLevel.error) {
-      color = Colors.redAccent;
-    } else if (entry.level == TelemetryLevel.sip) {
-      color = Colors.cyanAccent.withOpacity(0.9);
-      size = 10;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: color, width: 2)),
-      ),
+      padding: const EdgeInsets.only(bottom: 4.0),
       child: Text(
         entry.message,
         style: TextStyle(
-          fontFamily: 'monospace',
-          fontSize: size,
-          color: color,
-          fontWeight: weight,
+          color: textColor, 
+          fontFamily: 'monospace', 
+          fontSize: 11,
+          height: 1.2
         ),
       ),
     );

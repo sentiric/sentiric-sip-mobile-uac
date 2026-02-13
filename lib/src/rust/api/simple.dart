@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// Uygulama ilk açıldığında Rust loglarını Android sistemine bağlar.
 Future<void> initLogger() => RustLib.instance.api.crateApiSimpleInitLogger();
 
-/// SIP çağrısını başlatır ve olayları anlık olarak stream eder.
+/// SIP çağrısını başlatır ve olayları Flutter UI'a anlık olarak stream eder.
 Stream<String> startSipCall({
   required String targetIp,
   required int targetPort,

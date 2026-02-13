@@ -1,6 +1,6 @@
 // sentiric-sip-mobile-uac/rust/src/api/simple.rs
 
-use sentiric_telecom_client_sdk::{TelecomClient, UacEvent};
+use sentiric_telecom_client_sdk::{TelecomClient, UacEvent, CallState};
 use crate::frb_generated::StreamSink;
 use log::{info, LevelFilter};
 use android_logger::Config;
@@ -11,12 +11,12 @@ pub fn init_logger() {
     android_logger::init_once(
         Config::default()
             .with_max_level(LevelFilter::Info)
-            .with_tag("SENTIRIC-RUST"),
+            .with_tag("SENTIRIC-MOBILE"),
     );
-    info!("✅ Rust Logger initialized for Android (Telecom SDK v2).");
+    info!("✅ Mobile Logger Initialized via SDK v2.0");
 }
 
-/// SIP çağrısını başlatır ve olayları anlık olarak stream eder.
+/// SIP çağrısını başlatır ve olayları Flutter UI'a anlık olarak stream eder.
 pub async fn start_sip_call(
     target_ip: String,
     target_port: u16,
@@ -24,28 +24,53 @@ pub async fn start_sip_call(
     from_user: String,
     sink: StreamSink<String>, 
 ) -> anyhow::Result<()> {
+    
+    // 1. Loglama (Başlangıç)
+    info!("🚀 Mobile Dialing: {} -> {}:{}", from_user, target_ip, target_port);
+    // UI'a da bilgi verelim
+    let _ = sink.add(format!("Log(\"🚀 Starting Engine for {}:{}...\")", target_ip, target_port));
+
+    // 2. Kanal Kurulumu (SDK -> Flutter Bridge)
     let (tx, mut rx) = mpsc::channel::<UacEvent>(100);
     
-    // SDK Motorunu başlat
+    // 3. SDK Motorunu Başlat
     let client = TelecomClient::new(tx);
+
+    // 4. Olay Dinleme Döngüsü (Event Loop)
+    // [FIX]: sink nesnesini klonlayarak closure içine taşıyoruz.
+    // Orijinal sink nesnesi hata durumunda kullanılmak üzere dışarıda kalıyor.
+    let stream_sink = sink.clone(); 
 
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
-            // SDK'dan gelen enum yapısını ham string olarak gönderiyoruz (Debug format)
-            // Örn: Log("--> INVITE Sent") veya CallStateChanged(Connected)
-            let msg = format!("{:?}", event); 
+            // Rust Enum -> Debug String dönüşümü (Örn: CallStateChanged(Connected))
+            let msg = format!("{:?}", event);
             
-            // Android Logcat'e de bas (IDE'den izlemek için)
-            info!("{}", msg); 
+            // Android Logcat'e bas
+            info!("[SDK-EVENT] {}", msg);
             
-            // Flutter UI'a gönder
-            if sink.add(msg).is_err() {
+            // Flutter UI'a gönder (Klonlanmış sink üzerinden)
+            if stream_sink.add(msg).is_err() {
+                info!("⚠️ Flutter stream closed, stopping listener.");
                 break;
+            }
+
+            // Eğer çağrı bittiyse loop'u sonlandırabiliriz.
+            if let UacEvent::CallStateChanged(CallState::Terminated) = event {
+                // Opsiyonel: Stream'i kapatmak için break;
             }
         }
     });
 
-    client.start_call(target_ip, target_port, to_user, from_user).await?;
+    // 5. Çağrıyı Başlat (Asenkron)
+    // Hata olursa hemen yakalayıp Flutter'a bildiriyoruz.
+    if let Err(e) = client.start_call(target_ip, target_port, to_user, from_user).await {
+        let err_msg = format!("Error(\"Init Failed: {}\")", e);
+        info!("❌ {}", err_msg);
+        // Orijinal sink burada kullanılıyor
+        let _ = sink.add(err_msg);
+        return Err(e);
+    }
     
     Ok(())
 }
