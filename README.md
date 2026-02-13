@@ -24,5 +24,5 @@ make generate
 # Uygulamayı Android cihazda derle ve çalıştır
 make run-android
 ```
-
+---
 © 2026 Sentiric Team | GNU AGPL-3.0 License
