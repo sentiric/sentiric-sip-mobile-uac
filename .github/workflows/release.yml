@@ -41,9 +41,9 @@ jobs:
 
       - name: 5. Install Build Tools
         run: |
-          # DÜZELTME: libasound2-dev eklendi (CPAL/ALSA hatası çözümü)
           sudo apt-get update
-          sudo apt-get install -y ninja-build libasound2-dev
+          # [FIX]: protobuf-compiler eklendi (SDK gRPC derlemesi için şart)
+          sudo apt-get install -y ninja-build libasound2-dev protobuf-compiler
           cargo install flutter_rust_bridge_codegen --version 2.11.1
           cargo install cargo-ndk
 
@@ -52,24 +52,18 @@ jobs:
           flutter pub get
           flutter_rust_bridge_codegen generate
           
-          # NDK yolunu bul (Github Runnerlarda standarttır)
           export ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME
           
           cd rust
-          # Kütüphaneyi derle
           cargo ndk -t arm64-v8a -t armeabi-v7a -o ../android/app/src/main/jniLibs build --release
           cd ..
           
-          # --- MANUEL C++ KÜTÜPHANE KOPYALAMA (CI İÇİN) ---
-          echo "Searching for libc++_shared.so in $ANDROID_NDK_HOME..."
-          
-          # ARM64
+          # C++ Runtime kopyalama
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
           find $ANDROID_NDK_HOME -name "libc++_shared.so" | grep "aarch64" | head -n 1 | xargs -I {} cp {} android/app/src/main/jniLibs/arm64-v8a/
           
-          # ARMv7
+          mkdir -p android/app/src/main/jniLibs/armeabi-v7a
           find $ANDROID_NDK_HOME -name "libc++_shared.so" | grep "arm-linux-androideabi" | head -n 1 | xargs -I {} cp {} android/app/src/main/jniLibs/armeabi-v7a/
-          
-          echo "Library copy complete."
 
       - name: 7. Build Android APK
         run: flutter build apk --release --split-per-abi
@@ -99,5 +93,5 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/')"
         uses: actions/upload-artifact@v4
         with:
-          name: sentiric-uac-debug-apk
+          name: sentiric-uac-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
